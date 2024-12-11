@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fond circulaire -->
+  <circle cx="256" cy="256" r="256" fill="#0ea5e9"/>
+  
+  <!-- Timer stylisé -->
+  <circle 
+    cx="256" 
+    cy="256" 
+    r="200" 
+    fill="none" 
+    stroke="white" 
+    stroke-width="24"/>
+  
+  <!-- Arc de progression -->
+  <path 
+    d="M256 56 A200 200 0 0 1 456 256" 
+    fill="none" 
+    stroke="white" 
+    stroke-width="40"
+    stroke-linecap="round"/>
+    
+  <!-- Point central -->
+  <circle 
+    cx="256" 
+    cy="256" 
+    r="24" 
+    fill="white"/>
+</svg>

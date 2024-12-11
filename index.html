@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Flow - Application Pomodoro | Boostez votre productivité</title>
+    
+    <!-- Métadonnées SEO -->
+    <meta name="description" content="Focus Flow est une application Pomodoro minimaliste pour améliorer votre productivité. Utilisez des sessions de travail chronométrées pour rester concentré.">
+    <meta name="keywords" content="pomodoro, productivité, focus, timer, gestion du temps">
+    <meta name="author" content="Kylian">
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Focus Flow - Application Pomodoro">
+    <meta property="og:description" content="Améliorez votre productivité avec cette application Pomodoro minimaliste et élégante.">
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            },
+            darkMode: 'class'
+        }
+    </script>
+    <style>
+        .dark-mode-transition {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        @keyframes pulseOnActive {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        .timer-active {
+            animation: pulseOnActive 2s infinite;
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+    </style>
+</head>
+<body class="dark-mode-transition">
+    <div id="app">
+        <div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+            <!-- Dark mode toggle -->
+            <div class="fixed top-4 right-4">
+                <button @click="isDarkMode = !isDarkMode" 
+                        class="p-3 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                    <span v-if="isDarkMode" class="text-yellow-400 text-lg">☀️</span>
+                    <span v-else class="text-gray-700 text-lg">🌙</span>
+                </button>
+            </div>
+
+            <!-- Main content -->
+            <main class="flex-grow flex items-center justify-center p-4">
+                <div class="relative py-3 sm:max-w-xl sm:mx-auto">
+                    <div class="relative px-4 py-10 bg-white dark:bg-gray-800 shadow-xl rounded-3xl sm:p-20">
+                        <div class="max-w-md mx-auto">
+                            <!-- Phase indicator -->
+                            <div class="text-center mb-8">
+                                <span class="text-lg font-medium" :class="phaseInfo.color">
+                                    {{ phaseInfo.icon }} {{ phaseInfo.name }}
+                                </span>
+                                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    Cycle {{ cycles + 1 }}/{{ settings.cyclesBeforeLongBreak }}
+                                </div>
+                            </div>
+
+                            <!-- Timer -->
+                            <div class="relative w-48 h-48 mx-auto mb-8" :class="{'timer-active': isActive}">
+                                <svg class="progress-ring w-full h-full" viewBox="0 0 100 100">
+                                    <circle 
+                                        class="text-gray-100 dark:text-gray-700"
+                                        stroke="currentColor"
+                                        stroke-width="4"
+                                        fill="none"
+                                        r="45"
+                                        cx="50"
+                                        cy="50"/>
+                                    <circle 
+                                        :class="[
+                                            currentPhase === 'focus' ? 'text-primary-500 dark:text-primary-400' :
+                                            currentPhase === 'shortBreak' ? 'text-green-500 dark:text-green-400' :
+                                            'text-purple-500 dark:text-purple-400'
+                                        ]"
+                                        stroke="currentColor"
+                                        stroke-width="4"
+                                        fill="none"
+                                        r="45"
+                                        cx="50"
+                                        cy="50"
+                                        :stroke-dasharray="2 * Math.PI * 45"
+                                        :stroke-dashoffset="2 * Math.PI * 45 * (1 - timeLeft / (
+                                            currentPhase === 'focus' ? settings.focusDuration * 60 :
+                                            currentPhase === 'shortBreak' ? settings.shortBreakDuration * 60 :
+                                            settings.longBreakDuration * 60
+                                        ))"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-4xl font-bold text-gray-800 dark:text-gray-200">{{ formatTime }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Controls -->
+                            <div class="flex justify-center space-x-4">
+                                <button v-if="!isActive" 
+                                    @click="startTimer"
+                                    class="bg-primary-500 text-white px-6 py-2 rounded-lg hover:bg-primary-600 transform hover:scale-105 transition-all">
+                                    Démarrer
+                                </button>
+                                <button v-else 
+                                    @click="pauseTimer"
+                                    class="bg-yellow-500 text-white px-6 py-2 rounded-lg hover:bg-yellow-600 transform hover:scale-105 transition-all">
+                                    Pause
+                                </button>
+                                <button @click="resetTimer"
+                                    class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transform hover:scale-105 transition-all">
+                                    Réinitialiser
+                                </button>
+                                <button @click="showSettings = true"
+                                    class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all">
+                                    ⚙️
+                                </button>
+                            </div>
+
+                            <!-- Stats -->
+                            <div class="mt-8 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                            Sessions aujourd'hui
+                                        </div>
+                                        <div class="text-xl font-bold text-gray-800 dark:text-gray-200">
+                                            {{ stats.todaySessions }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                            Temps total focus
+                                        </div>
+                                        <div class="text-xl font-bold text-gray-800 dark:text-gray-200">
+                                            {{ formatDuration(Math.floor(stats.totalFocusTime / 60)) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Break prompt modal -->
+            <div v-if="showBreakPrompt" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
+                        {{ currentPhase === 'focus' ? 'Session terminée !' : 'Pause terminée !' }}
+                    </h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">
+                        {{ currentPhase === 'focus' 
+                            ? `Vous avez terminé votre session de focus ! Prenez ${cycles % settings.cyclesBeforeLongBreak === 0 
+                                ? 'une grande pause bien méritée.' 
+                                : 'une petite pause.'}` 
+                            : 'Prêt à reprendre une nouvelle session de focus ?' }}
+                    </p>
+                    <div class="flex justify-end space-x-3">
+                        <button @click="showBreakPrompt = false" 
+                            class="px-4 py-2 text-gray-600 dark:text-gray-400">
+                            Plus tard
+                        </button>
+                        <button @click="currentPhase === 'focus' ? startBreak() : startFocus()" 
+                            class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
+                            {{ currentPhase === 'focus' ? 'Commencer la pause' : 'Commencer la session' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings modal -->
+            <div v-if="showSettings" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Paramètres</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                Durée du focus (minutes)
+                            </label>
+                            <input type="number" v-model="settings.focusDuration" min="1" max="60"
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                Durée de la petite pause (minutes)
+                            </label>
+                            <input type="number" v-model="settings.shortBreakDuration" min="1" max="30"
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                Durée de la grande pause (minutes)
+                            </label>
+                            <input type="number" v-model="settings.longBreakDuration" min="5" max="60"
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                Cycles avant grande pause
+                            </label>
+                            <input type="number" v-model="settings.cyclesBeforeLongBreak" min="1" max="10"
+                                class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" v-model="settings.notifications" id="notifications"
+                                class="rounded text-primary-500">
+                            <label for="notifications" class="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                                Notifications bureau
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button @click="showSettings = false" 
+                            class="px-4 py-2 text-gray-600 dark:text-gray-400">
+                            Annuler
+                        </button>
+                        <button @click="saveSettings" 
+                            class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
+                            Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <footer class="py-4 px-6 bg-white dark:bg-gray-800 shadow-lg">
+                <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        Raccourcis : [Espace] Start/Pause | [R] Reset | [S] Paramètres
+                    </div>
+                    <div class="flex space-x-4">
+                        <a href="https://github.com/votre-username/focus-flow" target="_blank" 
+                           class="text-gray-600 dark:text-gray-400 hover:text-primary-500 transition-colors">
+                            GitHub
+                        </a>
+                        <a href="https://bsky.app/profile/kylianlm.bsky.social" target="_blank" 
+                           class="text-gray-600 dark:text-gray-400 hover:text-primary-500 transition-colors">
+                            Bluesky
+                        </a>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
